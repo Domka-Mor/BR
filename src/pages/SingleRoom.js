@@ -1,87 +1,490 @@
 import React from 'react';
-import Hero from '../components/Hero';
 import Banner from '../components/Banner';
 import {Link} from 'react-router-dom';
-import {RoomContext} from '../context';
+import {RoomConsumer} from '../context';
 import StyledHero from '../components/StyledHero';
+import NavbarSingleRoom from '../components/Navbars/NavbarSingleRoom';
+import AuthContext from '../auth-context';
+import Modal from '../components/Modal/Modal';
+import Backdrop from '../components/Backdrop/Backdrop';
+import moment from 'moment';
+import Carousel from "react-multi-carousel";
+import "react-multi-carousel/lib/styles.css";
+import ScrollUpButton from "react-scroll-up-button";
+import EventList from '../components/EventItem/EventList';
+import Loader from '../components/Loader';
+import AOS from 'aos';
+import 'aos/dist/aos.css';
 
+const responsive = {
+  desktop: {
+    breakpoint: { max: 3000, min: 1024 },
+    items: 3,
+    slidesToSlide: 3 
+  },
+  tablet: {
+    breakpoint: { max: 1024, min: 464 },
+    items: 2,
+    slidesToSlide: 2 
+  },
+  mobile: {
+    breakpoint: { max: 464, min: 0 },
+    items: 1,
+    slidesToSlide: 1
+  }
+};
 
 export default class SingleRoom extends React.Component {
 
-	constructor(props){
-		super(props);
-		console.log(this.props)
-		this.state = {
-			slug: this.props.match.params.slug
-		}
-	}
+ 
+static contextType = AuthContext;
 
+  isActive = true;
 
-	static contextType = RoomContext;
+  constructor(props){
+    super(props);
+      this.roomNameElRef = React.createRef();
+      this.priceElRef = React.createRef();
+      this.dateStartElRef = React.createRef();
+      this.dateEndElRef = React.createRef();
+      this.state = {
+        slug: this.props.match.params.slug,
+        startDate: '',
+        endDate: '',
+        events: [],
+        isLoading: false,
+        creating: false,
+        selectedEvent: null,
+        inform: false
+      }
+      this.handleChangeEnd = this.handleChangeEnd.bind(this);
+      this.handleChangeStart = this.handleChangeStart.bind(this);
+  }
 
+  componentDidMount() {
+    this.context.token && this.fetchEvents();
+    AOS.init({
+      duration : 2000
+    })
+  }
+   
+  handleChangeStart(event)  {
+    this.setState({
+    startDate: event.target.value   
+    }); 
+  }
+  handleChangeEnd(event) {
+    this.setState({
+    endDate: event.target.value 
+    });
+  }
 
-	render() {
+  calculateDaysLeft(startDate, endDate) {
+    if (!moment.isMoment(startDate)) startDate = moment(startDate);
+    if (!moment.isMoment(endDate)) endDate = moment(endDate);
+    return endDate.diff(startDate, "days");
+  }
 
-		const {getRoom} = this.context;
-		const room = getRoom(this.state.slug);
+  fetchEvents() {
+    this.setState({ isLoading: true });
+    const requestBody = {
+      query: `
+          query {
+            events {
+              _id
+             roomName          
+              dateStart
+              dateEnd
+              price
+              creator {
+                _id
+                email
+              }
+            }
+          }
+        `
+    };
 
-		if(!room) {
-			return (
-				<div className='error'>
-					<h3>no such room could be found...</h3>
-					<Link to='/rooms' className='btn-primary'>
-						back to rooms
-					</Link>
-				</div>
-			)
-		}
+    fetch('https://hotel-reserve-backend.onrender.com/graphql', {
+      method: 'POST',
+      body: JSON.stringify(requestBody),
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + this.context.token
+      }
+    })
+      .then(res => {
+        let status = res.status;
+        let result;
+        switch (status) {
+          case 404:
+            console.log('Event not foud!')
+          break;
+          case 200:           
+            result = res.json()
+          break;
+          case 500:
+            console.log('Something goes wrong!')
+          break;
+          default:
+        }
+        return result;
+      })
+      .then(resData => {
+        const events = resData.data.events;
+        if (this.isActive) {
+          this.setState({ events: events, isLoading: false });
+        }
+      })
+      .catch(err => {
+        console.log(err);
+        if (this.isActive) {
+          this.setState({ isLoading: false });
+        }
+      });
+    }
 
+  startCreateEventHandler = () => {
+    this.setState({ creating: true });
+  };
 
-		const {name,description, capacity,size,price,extras,breakfast,pets,images} = room
+  modalConfirmHandler = () => {
+    this.setState({ creating: false, inform: true, isLoading: true});
+    const roomName = this.roomNameElRef.current.value;
+    const price = +this.priceElRef.current.value;
+    const dateStart = this.dateStartElRef.current.value;
+    const dateEnd = this.dateEndElRef.current.value;
 
-		return (
-			<>
-				<StyledHero img = {images[0]}>
-					<Banner title={`${name} room`}>
-						<Link to='/rooms' className='btn-primary'>
-							back to rooms
-						</Link>
-					</Banner>
-				</StyledHero>
-				<section className='single-room'>
-					<div className='single-room-images'>
-						{images.map((item,index)=>{
-							return <img key={index} src={item} alt={name}/>;
-						})}
-					</div>
-					<div className='single-room-info'>
-						<article className='desc'>
-							<h3>details</h3>
-							<p>{description}</p>
-						</article>
-						<article>
-							<h3> info </h3>
-							<h6> price : ${price}</h6>
-							<h6> size : {size} SQFT</h6>
-							<h6>
-								max capacity : {
-									capacity > 1 ? `${capacity} people` : `${capacity} person`
-								}
-							</h6>
-							<h6> {pets ? 'pets allowed' : 'no pets allowed'}</h6>
-							<h6> {breakfast && 'free breakfast included'} </h6>
-						</article>
-					</div>
-				</section>
-				<section className='room-extras'>
-					<h6> extras </h6>
-					<ul>
-						{extras.map((item,index) => {
-							return <li key={index}> - {item} </li>;
-						})}
-					</ul>
-				</section>
-			</>
-		)
-	}
+    if (
+      roomName.trim().length === 0 ||
+      price <= 0 ||
+      dateStart.trim().length === 0 ||
+      dateEnd.trim().length === 0
+    ) {
+      return;
+    }
+
+    const requestBody = {
+      query: `
+          mutation CreateEvent($roomName: String!, $price: Float!, $dateStart: String!, $dateEnd: String!) {
+            createEvent(eventInput: {roomName: $roomName, price: $price, dateStart: $dateStart, dateEnd: $dateEnd}) {
+              _id
+              roomName             
+              dateStart
+              dateEnd
+              price
+            }
+          }
+        `,
+        variables: {
+          roomName: roomName,
+          price: price,
+          dateStart: dateStart,
+          dateEnd: dateEnd
+        }
+    };
+
+    const token = this.context.token;
+
+    fetch('https://hotel-reserve-backend.onrender.com/graphql', {
+      method: 'POST',
+      body: JSON.stringify(requestBody),
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + token
+      }
+    })
+      .then(res => {
+          let status = res.status;
+          let result;
+          switch (status) {
+          case 200:
+            result = res.json()
+          break;
+          case 500:
+            console.log('Something goes wrong!')
+          break;
+          default:
+        }
+        return result;
+      })
+      .then(resData => {
+        this.setState(prevState => {
+          const updatedEvents = [...prevState.events];
+          updatedEvents.push({
+            _id: resData.data.createEvent._id,
+            roomName: resData.data.createEvent.roomName,
+            dateStart: resData.data.createEvent.dateStart,
+            dateEnd: resData.data.createEvent.dateEnd,
+            price: resData.data.createEvent.price,
+            creator: {
+              _id: this.context.userId
+            }
+          });
+          return { events: updatedEvents };
+        });
+        this.setState({isLoading: false})
+        this.handleScroll()
+      })
+      .catch(err => {
+        console.log(err);
+      });
+  };
+
+  modalCancelHandler = () => {
+    this.setState({ creating: false, selectedEvent: null });
+  };
+
+  showDetailHandler = eventId => {
+    this.setState(prevState => {
+      const selectedEvent = prevState.events.find(e => e._id === eventId);
+      return { selectedEvent: selectedEvent };
+    });
+    this.setState({inform:false});
+  };
+
+  bookEventHandler = () => {
+    if (!this.context.token) {
+      this.setState({ selectedEvent: null });
+      return;
+    }
+    this.setState({isLoading:true})
+
+    const requestBody = {
+      query: `
+          mutation BookEvent($id: ID!) {
+            bookEvent(eventId: $id) {
+              _id
+             createdAt
+             updatedAt
+            }
+          }
+        `,
+        variables: {
+          id: this.state.selectedEvent._id,
+        }
+    };
+
+    fetch('https://hotel-reserve-backend.onrender.com/graphql', {
+      method: 'POST',
+      body: JSON.stringify(requestBody),
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + this.context.token
+      }
+    })
+      .then(res => {
+          let status = res.status;
+          switch (status) {
+          case 200:
+            this.setState({ selectedEvent: null, isLoading: false});
+            console.log(res.json())
+            this.props.history.push('/bookings');      
+          break;
+          case 500:
+            console.log('Something goes wrong!')
+          break;
+          default:
+        }
+      })
+      .catch(err => {
+        console.log(err);
+      });
+  };
+
+  handleScroll = () => {
+    const element = document.getElementById('scroll');
+    if (element) {
+      // 👇 Will scroll smoothly to the top of the next section
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  componentWillUnmount() {
+    this.isActive = false;
+  }
+
+  render() {
+    return (
+      <RoomConsumer>
+        {({getRoom}) => {
+        
+        const room = getRoom(this.state.slug);
+        const { startDate, endDate } = this.state;
+        const daysLeft = this.calculateDaysLeft(startDate, endDate);
+
+        if(!room) {
+          return (
+          <div className='container-error'>
+            <div className='error'>
+              <h3>no such room could be found...</h3>
+              <Link to='/rooms' className='btn-main'>
+                back to rooms
+              </Link>
+            </div>
+          </div>
+          )
+        }
+
+        const {name,description, capacity,size,price,extras,breakfast,pets,images} = room
+
+        return (
+          <>
+            <NavbarSingleRoom/>
+            <StyledHero img = {images[0]}>
+              <Banner title={`${name} room`}>
+                <Link to='/rooms' className='btn-main'>
+                  back to rooms
+                </Link>
+              </Banner>
+            </StyledHero>          
+            <section className='single-room'>
+              <div className='single-room-images'>
+                <Carousel responsive={responsive}
+                        swipeable={true}
+                        infinite={true}
+                        transitionDuration={1000}
+                >
+                  {images.map((item,index)=>{
+                    return <img key={index} src={item} alt={name}/>;
+                  })}
+                </Carousel>
+              </div>
+              <div className='single-room-info' data-aos="fade-left">
+                <article className='desc'>
+                  <h3 >details</h3>
+                  <p>{description}</p>
+                </article>
+                <article className='info' data-aos="fade-left">
+                  <h3> Info </h3>
+                  <h6> price : ${price}</h6>
+                  <h6> size : {size} SQFT</h6>
+                  <h6>
+                    max capacity : {
+                      capacity > 1 ? `${capacity} people` : `${capacity} person`
+                    }
+                  </h6>
+                  <h6> {pets ? 'pets allowed' : 'no pets allowed'}</h6>
+                  <h6> {breakfast && 'free breakfast included'} </h6>
+                </article>
+              </div>
+            </section>
+            <section className='extras'>
+              <div className='room-extras' data-aos="fade-left">
+                <h3> extras </h3>
+                <ul>
+                  {extras.map((item,index) => {
+                    return <li key={index}> {item} </li>;
+                  })}
+                </ul>
+              </div>
+            </section>
+
+            {!this.state.inform &&
+              (<section className='login'>
+                {!this.context.token && (                  
+                  <Link to="/auth" className='btn-login'>    
+                     Login
+                  </Link> 
+                )}
+
+                {this.context.token && (                  
+                  <div className="events-control">
+                    <button className="btn-login" onClick={this.startCreateEventHandler}>
+                      Book Now
+                    </button>
+                  </div> 
+                )}
+              </section>)
+            }
+
+            <ScrollUpButton 
+              StopPosition={0}
+              ShowAtPosition={150}
+              EasingType='easeOutCubic'
+              AnimationDuration={500}
+              style={{background: 'transparent', outline:'none', fill:'#af9a7d'}}
+            />
+
+            <section id='scroll'>
+
+              {(this.state.creating || this.state.selectedEvent) && <Backdrop />}
+
+              {this.state.creating && (
+                <Modal
+                  canCancel
+                  canConfirm
+                  onCancel={this.modalCancelHandler}
+                  onConfirm={this.modalConfirmHandler}
+                  confirmText="Confirm"
+                >
+                  <form>
+                      <div className='pb-4'>
+                        <h3 className='text-center'>Room Details</h3>
+                      </div>
+
+                      <div className='pb-3 px-3'>                                                            
+                        <h6><span>Room :</span> {name}</h6>                                                                     
+                        <h6><span>Capacity :</span> {capacity}</h6>                                                                                            
+                        <h6><span>Size :</span> {size} sqft.</h6>                                                                                              
+                        <h6><span>Breakfast :</span> {breakfast === true ? `Included`: `Not Included`}</h6>                                                                                         
+                        <h6><span>Pets :</span> {pets ===true ? `Allowed` : `Not Allowed`}</h6>                                                                                         
+                      </div>
+ 
+                      <div className='pb-3 px-3'>
+                        <h6><span>Price per day :</span> ${price}</h6>
+                        <h6><span>Number of days :</span> {daysLeft || "0"}</h6>                                     
+                        <h6><span>Total Price :</span> ${daysLeft*price || "0"}</h6>
+                      </div>
+
+                      <div className='pb-3'>
+                        <div className="visuallyhidden">
+                         <label htmlFor="roomName">Room</label>
+                          <input type="text" id="roomName" value={name} readOnly ref={this.roomNameElRef} />
+                        </div>
+                        <div className="visuallyhidden">
+                          <label htmlFor="price">Price</label>
+                          <input type="number" id="price" value={price} readOnly ref={this.priceElRef} />
+                        </div>
+                        <div className="modal-input">
+                          <label htmlFor="dateStart">Arrival :</label>
+                          <input type="datetime-local" id="dateStart" value={this.state.value} onChange={this.handleChangeStart} ref={this.dateStartElRef}/>
+                        </div>
+                        <div className="modal-input">
+                          <label htmlFor="dateEnd">Departure :</label>
+                          <input type="datetime-local" id="dateEnd" value={this.state.value} onChange={this.handleChangeEnd} ref={this.dateEndElRef} />
+                        </div>
+                      </div>                      
+                  </form>
+                </Modal>
+              )}
+
+              {this.state.selectedEvent && (
+                <Modal
+                  canConfirm
+                  onConfirm={this.bookEventHandler}
+                  confirmText='Confirm'
+                >            
+                  <h3 className='text-center'>Thank you for your reservation</h3>
+                </Modal>
+              )}
+
+              {this.state.inform && (
+                <div>
+                  <EventList
+                    events={this.state.events}
+                    authUserId={this.context.userId}
+                    onViewDetail={this.showDetailHandler}
+                  />
+                </div>
+              )}               
+            </section>
+
+            {this.state.isLoading && <Loader/>}
+          </>
+        )
+        }}
+      </RoomConsumer>
+    );
+  }
 }

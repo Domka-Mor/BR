@@ -1,24 +1,42 @@
-import React from 'react';
-import Hero from '../components/Hero';
+import React,{Suspense,lazy} from 'react';
+import VideoHome from '../components/VideoBanners/VideoHome';
 import Banner from '../components/Banner';
 import {Link} from 'react-router-dom';
-import Services from '../components/Services';
-import FeaturedRooms from '../components/FeaturedRooms';
+import Navbar from '../components/Navbars/Navbar';
+import ScrollUpButton from "react-scroll-up-button";
+import Footer from '../components/Footer';
+import Loader from '../components/Loader';
 
+const Services = lazy(() => import('../components/Services/Services'));
+const AboutUs = lazy(() => import('../components/About/AboutUs'));
+const CardCarousel = lazy(() => import('../components/CardCarousel'));
+const ReservationInfo = lazy(() => import('../components/ReservationInfo'));
 
-
-export default function Home() {
+export default function Home(props) {
 	return (
 		<>
-			<Hero>
-				<Banner title='luxurious rooms' subtitle='deluxe rooms starting at $299'>
-					<Link to='/rooms' className='btn-primary'>
+			<Navbar/>
+			<VideoHome>
+				<Banner title='Beach Resort' subtitle='welcome to our website'>
+					<Link to='/rooms' className='btn-main'>
 					our rooms
 					</Link>
 				</Banner>
-			</Hero>
-			<Services/>
-			<FeaturedRooms/>
+			</VideoHome>
+			<Suspense fallback={<Loader/>}>
+				<Services/>
+				<CardCarousel/>	
+				<ReservationInfo/>
+				<AboutUs/>
+			</Suspense>
+			<ScrollUpButton 
+				StopPosition={0}
+      			ShowAtPosition={150}
+      			EasingType='easeOutCubic'
+      			AnimationDuration={500}
+				style={{background: 'transparent', outline:'none', fill:'#af9a7d'}}
+			/>
+			<Footer/>
 		</>
-	)
+	);
 }

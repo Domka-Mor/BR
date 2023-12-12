@@ -1,15 +1,12 @@
 import React from 'react';
-// import items from './data';
-import Client from './Contentful';
-
-
+import items from './data';
 
 const RoomContext = React.createContext();
 
-
-
-	class RoomProvider extends React.Component {
-		state= {
+class RoomProvider extends React.Component {
+	constructor(props){
+		super(props);
+		this.state= {
 			rooms: [],
 			sortedRooms:[],
 			featuredRooms:[],
@@ -24,44 +21,29 @@ const RoomContext = React.createContext();
 			breakfast: false,
 			pets: false
 		};
-
-
-
-
-
-	getData = async () =>{
-		try {
-			let response = await Client.getEntries({
-			content_type: 'hotelReservationSystem',
-			order: 'fields.price'
-			});
-
-			let rooms = this.formatData(response.items);
-			let featuredRooms = rooms.filter(room => room.featured === true);
-
-			let maxPrice = Math.max(...rooms.map(item => item.price));
-			let maxSize = Math.max(...rooms.map(item => item.size));
-
-			this.setState({
-				rooms, 
-				featuredRooms,
-				sortedRooms: rooms,
-				loading: false,
-				price: maxPrice,
-				maxPrice,
-				maxSize
-			})									
-		} catch(error) {
-			console.log(error);
-			}
 	}
+		
+	getData() {
+		let rooms = this.formatData(items);
+		let featuredRooms = rooms.filter(room => room.featured === true);
 
+		let maxPrice = Math.max(...rooms.map(item => item.price));
+		let maxSize = Math.max(...rooms.map(item => item.size));
 
+		this.setState({
+			rooms, 
+			featuredRooms,
+			sortedRooms: rooms,
+			loading: false,
+			price: maxPrice,
+			maxPrice,
+			maxSize
+		})									
+	}
 
 	componentDidMount (){
-		this.getData()
+		this.getData();
 	}
-
 
 	formatData(items){
 		let tempItems = items.map(item =>{
@@ -74,14 +56,11 @@ const RoomContext = React.createContext();
 		return tempItems;
 	}
 
-
-
 	getRoom = (slug) => {
 		let tempRooms = [...this.state.rooms]
 		const room = tempRooms.find((room)=>room.slug === slug)
 		return room;
 	}
-
 
 	handleChange = event => {
 		const target = event.target
@@ -92,7 +71,6 @@ const RoomContext = React.createContext();
 		},this.filterRooms)
 		
 	}
-
 
 	filterRooms = () => {
 		let {rooms, type,capacity,price,minSize,maxSize,breakfast,pets} = this.state
@@ -124,7 +102,6 @@ const RoomContext = React.createContext();
 		// change state
 		this.setState({sortedRooms:tempRooms})
 	}
-
 
 	render() {
 		return (
